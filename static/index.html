@@ -1,0 +1,536 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>智能任务清单 - 全栈版</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
+    <link
+      rel="stylesheet"
+      href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css"
+    />
+    <style>
+      @keyframes slideIn {
+        from {
+          opacity: 0;
+          transform: translateY(-10px);
+        }
+        to {
+          opacity: 1;
+          transform: translateY(0);
+        }
+      }
+      .task-item {
+        animation: slideIn 0.3s ease-out;
+      }
+      .task-completed {
+        text-decoration: line-through;
+        opacity: 0.6;
+      }
+      .custom-scrollbar::-webkit-scrollbar {
+        width: 6px;
+      }
+      .custom-scrollbar::-webkit-scrollbar-track {
+        background: #f1f1f1;
+        border-radius: 10px;
+      }
+      .custom-scrollbar::-webkit-scrollbar-thumb {
+        background: #888;
+        border-radius: 10px;
+      }
+      .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+        background: #555;
+      }
+      .history-item {
+        border-left: 3px solid #e5e7eb;
+        padding-left: 12px;
+      }
+      .history-item.add {
+        border-left-color: #10b981;
+      }
+      .history-item.complete {
+        border-left-color: #3b82f6;
+      }
+      .history-item.delete {
+        border-left-color: #ef4444;
+      }
+    </style>
+  </head>
+  <body class="bg-gradient-to-br from-blue-50 to-indigo-100 min-h-screen">
+    <div class="container mx-auto px-4 py-8 max-w-4xl">
+      <!-- 头部 -->
+      <header class="text-center mb-10">
+        <h1 class="text-4xl font-bold text-indigo-800 mb-2">
+          <i class="fas fa-tasks mr-2"></i>智能任务清单
+        </h1>
+        <p class="text-gray-600">全栈版 - 数据持久化存储</p>
+      </header>
+
+      <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <!-- 左侧：任务管理 -->
+        <div class="lg:col-span-2">
+          <!-- 任务输入区 -->
+          <div class="bg-white rounded-xl shadow-lg p-6 mb-6">
+            <div class="flex gap-3">
+              <input
+                type="text"
+                id="taskInput"
+                placeholder="添加新任务..."
+                class="flex-1 px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none transition"
+              />
+              <button
+                id="addBtn"
+                class="bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-3 rounded-lg font-medium transition transform hover:scale-105 active:scale-95"
+              >
+                <i class="fas fa-plus mr-1"></i>添加
+              </button>
+            </div>
+          </div>
+
+          <!-- 过滤器 -->
+          <div class="flex justify-center mb-6 gap-2">
+            <button
+              class="filter-btn active px-4 py-2 rounded-full font-medium transition"
+              data-filter="all"
+            >
+              全部任务
+            </button>
+            <button
+              class="filter-btn px-4 py-2 rounded-full font-medium transition"
+              data-filter="active"
+            >
+              进行中
+            </button>
+            <button
+              class="filter-btn px-4 py-2 rounded-full font-medium transition"
+              data-filter="completed"
+            >
+              已完成
+            </button>
+          </div>
+
+          <!-- 任务统计 -->
+          <div
+            class="bg-indigo-50 rounded-xl p-4 mb-6 flex justify-between items-center"
+          >
+            <div class="text-indigo-800">
+              <span class="font-medium">任务统计：</span>
+              <span id="taskCount">0</span> 个任务 | 已完成
+              <span id="completedCount">0</span> 个
+            </div>
+            <button
+              id="clearCompleted"
+              class="text-red-600 hover:text-red-800 font-medium transition"
+            >
+              <i class="fas fa-trash-alt mr-1"></i>清除已完成
+            </button>
+          </div>
+
+          <!-- 任务列表 -->
+          <div class="bg-white rounded-xl shadow-lg overflow-hidden">
+            <ul
+              id="taskList"
+              class="divide-y divide-gray-200 max-h-96 overflow-y-auto custom-scrollbar"
+            >
+              <!-- 任务项将通过JS动态添加 -->
+            </ul>
+            <div id="emptyState" class="text-center py-12 text-gray-500">
+              <i
+                class="fas fa-clipboard-list text-4xl mb-3 block text-gray-300"
+              ></i>
+              暂无任务，添加一个开始吧！
+            </div>
+          </div>
+        </div>
+
+        <!-- 右侧：历史记录 -->
+        <div class="lg:col-span-1">
+          <div class="bg-white rounded-xl shadow-lg p-6">
+            <div class="flex justify-between items-center mb-4">
+              <h2 class="text-xl font-bold text-gray-800">
+                <i class="fas fa-history mr-2 text-indigo-600"></i>历史记录
+              </h2>
+              <button
+                id="refreshHistory"
+                class="text-indigo-600 hover:text-indigo-800"
+              >
+                <i class="fas fa-sync-alt"></i>
+              </button>
+            </div>
+
+            <div
+              id="historyList"
+              class="space-y-3 max-h-96 overflow-y-auto custom-scrollbar"
+            >
+              <!-- 历史记录将通过JS动态添加 -->
+            </div>
+
+            <div id="historyEmpty" class="text-center py-8 text-gray-500">
+              <i class="fas fa-history text-3xl mb-2 block text-gray-300"></i>
+              暂无历史记录
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <script>
+      // 任务管理类
+      class TaskManager {
+        constructor() {
+          this.tasks = [];
+          this.history = [];
+          this.currentFilter = "all";
+          this.apiBase = "/api";
+          this.init();
+        }
+
+        init() {
+          this.bindEvents();
+          this.loadTasks();
+          this.loadHistory();
+        }
+
+        // 绑定事件
+        bindEvents() {
+          // 添加任务
+          document
+            .getElementById("addBtn")
+            .addEventListener("click", () => this.addTask());
+          document
+            .getElementById("taskInput")
+            .addEventListener("keypress", (e) => {
+              if (e.key === "Enter") this.addTask();
+            });
+
+          // 过滤器
+          document.querySelectorAll(".filter-btn").forEach((btn) => {
+            btn.addEventListener("click", (e) => {
+              document
+                .querySelectorAll(".filter-btn")
+                .forEach((b) => b.classList.remove("active"));
+              e.target.classList.add("active");
+              this.currentFilter = e.target.dataset.filter;
+              this.renderTasks();
+            });
+          });
+
+          // 清除已完成
+          document
+            .getElementById("clearCompleted")
+            .addEventListener("click", () => {
+              this.clearCompleted();
+            });
+
+          // 刷新历史记录
+          document
+            .getElementById("refreshHistory")
+            .addEventListener("click", () => {
+              this.loadHistory();
+            });
+        }
+
+        // 加载任务
+        async loadTasks() {
+          try {
+            const response = await axios.get(`${this.apiBase}/tasks`);
+            this.tasks = response.data || [];
+            this.renderTasks();
+          } catch (error) {
+            this.showNotification("加载任务失败: " + error.message, "error");
+          }
+        }
+
+        // 加载历史记录
+        async loadHistory() {
+          try {
+            const response = await axios.get(`${this.apiBase}/history`);
+            this.history = response.data;
+            this.renderHistory();
+          } catch (error) {
+            this.showNotification(
+              "加载历史记录失败: " + error.message,
+              "error"
+            );
+          }
+        }
+
+        // 添加任务
+        async addTask() {
+          const input = document.getElementById("taskInput");
+          const text = input.value.trim();
+
+          if (!text) {
+            this.showNotification("请输入任务内容");
+            return;
+          }
+
+          try {
+            const response = await axios.post(`${this.apiBase}/tasks`, {
+              text,
+            });
+            this.tasks.unshift(response.data.task);
+            this.history.unshift(response.data.history);
+            input.value = "";
+            this.renderTasks();
+            this.renderHistory();
+            this.showNotification("任务添加成功！");
+          } catch (error) {
+            this.showNotification("添加任务失败: " + error.message, "error");
+          }
+        }
+
+        // 切换任务状态
+        async toggleTask(id) {
+          try {
+            const response = await axios.put(
+              `${this.apiBase}/tasks/${id}/toggle`
+            );
+            const updatedTask = response.data.task;
+            const historyEntry = response.data.history;
+
+            // 更新任务列表
+            const index = this.tasks.findIndex((t) => t.id === id);
+            if (index !== -1) {
+              this.tasks[index] = updatedTask;
+            }
+
+            // 添加历史记录
+            this.history.unshift(historyEntry);
+
+            this.renderTasks();
+            this.renderHistory();
+          } catch (error) {
+            this.showNotification("更新任务失败: " + error.message, "error");
+          }
+        }
+
+        // 删除任务
+        async deleteTask(id) {
+          try {
+            const response = await axios.delete(`${this.apiBase}/tasks/${id}`);
+            const historyEntry = response.data.history;
+
+            // 从任务列表中移除
+            this.tasks = this.tasks.filter((t) => t.id !== id);
+
+            // 添加历史记录
+            this.history.unshift(historyEntry);
+
+            this.renderTasks();
+            this.renderHistory();
+            this.showNotification("任务已删除");
+          } catch (error) {
+            this.showNotification("删除任务失败: " + error.message, "error");
+          }
+        }
+
+        // 清除已完成任务
+        async clearCompleted() {
+          const completedIds = this.tasks
+            .filter((t) => t.completed)
+            .map((t) => t.id);
+          if (completedIds.length === 0) {
+            this.showNotification("没有已完成的任务");
+            return;
+          }
+
+          try {
+            const response = await axios.delete(
+              `${this.apiBase}/tasks/completed`,
+              {
+                data: { ids: completedIds },
+              }
+            );
+
+            // 移除已完成的任务
+            this.tasks = this.tasks.filter((t) => !t.completed);
+
+            // 添加历史记录
+            response.data.history.forEach((entry) => {
+              this.history.unshift(entry);
+            });
+
+            this.renderTasks();
+            this.renderHistory();
+            this.showNotification(`已清除 ${completedIds.length} 个已完成任务`);
+          } catch (error) {
+            this.showNotification("清除任务失败: " + error.message, "error");
+          }
+        }
+
+        // 获取过滤后的任务
+        getFilteredTasks() {
+          switch (this.currentFilter) {
+            case "active":
+              return this.tasks.filter((t) => !t.completed);
+            case "completed":
+              return this.tasks.filter((t) => t.completed);
+            default:
+              return this.tasks;
+          }
+        }
+
+        // 渲染任务列表
+        renderTasks() {
+          const taskList = document.getElementById("taskList");
+          const emptyState = document.getElementById("emptyState");
+          const filteredTasks = this.getFilteredTasks();
+
+          // 更新统计
+          document.getElementById("taskCount").textContent = this.tasks.length;
+          document.getElementById("completedCount").textContent =
+            this.tasks.filter((t) => t.completed).length;
+
+          // 清空列表
+          taskList.innerHTML = "";
+
+          if (filteredTasks.length === 0) {
+            emptyState.style.display = "block";
+          } else {
+            emptyState.style.display = "none";
+
+            filteredTasks.forEach((task) => {
+              const li = document.createElement("li");
+              li.className =
+                "task-item p-4 flex items-center justify-between hover:bg-gray-50 transition";
+
+              li.innerHTML = `
+                            <div class="flex items-center flex-1">
+                                <input 
+                                    type="checkbox" 
+                                    ${task.completed ? "checked" : ""} 
+                                    class="w-5 h-5 text-indigo-600 rounded focus:ring-indigo-500 mr-3"
+                                    onchange="taskManager.toggleTask(${
+                                      task.id
+                                    })"
+                                >
+                                <div class="flex-1">
+                                    <div class="font-medium ${
+                                      task.completed
+                                        ? "task-completed text-gray-500"
+                                        : "text-gray-800"
+                                    }">
+                                        ${task.text}
+                                    </div>
+                                    <div class="text-xs text-gray-500 mt-1">
+                                        <i class="far fa-clock mr-1"></i>${new Date(
+                                          task.created_at
+                                        ).toLocaleString("zh-CN")}
+                                    </div>
+                                </div>
+                            </div>
+                            <button 
+                                onclick="taskManager.deleteTask(${task.id})"
+                                class="text-red-500 hover:text-red-700 ml-4 transition transform hover:scale-110"
+                            >
+                                <i class="fas fa-trash"></i>
+                            </button>
+                        `;
+
+              taskList.appendChild(li);
+            });
+          }
+        }
+
+        // 渲染历史记录
+        renderHistory() {
+          const historyList = document.getElementById("historyList");
+          const historyEmpty = document.getElementById("historyEmpty");
+
+          historyList.innerHTML = "";
+
+          if (this.history.length === 0) {
+            historyEmpty.style.display = "block";
+          } else {
+            historyEmpty.style.display = "none";
+
+            this.history.forEach((entry) => {
+              const div = document.createElement("div");
+              div.className = `history-item ${entry.action} p-3 rounded-lg bg-gray-50`;
+
+              let actionIcon, actionText, actionColor;
+              switch (entry.action) {
+                case "add":
+                  actionIcon = "fa-plus-circle";
+                  actionText = "添加任务";
+                  actionColor = "text-green-600";
+                  break;
+                case "complete":
+                  actionIcon = "fa-check-circle";
+                  actionText = "完成任务";
+                  actionColor = "text-blue-600";
+                  break;
+                case "delete":
+                  actionIcon = "fa-trash-circle";
+                  actionText = "删除任务";
+                  actionColor = "text-red-600";
+                  break;
+              }
+
+              div.innerHTML = `
+                            <div class="flex items-start">
+                                <i class="fas ${actionIcon} ${actionColor} mt-1 mr-2"></i>
+                                <div class="flex-1">
+                                    <div class="font-medium text-gray-800">${
+                                      entry.task_text
+                                    }</div>
+                                    <div class="text-xs text-gray-500 mt-1">
+                                        ${actionText} · ${new Date(
+                entry.created_at
+              ).toLocaleString("zh-CN")}
+                                    </div>
+                                </div>
+                            </div>
+                        `;
+
+              historyList.appendChild(div);
+            });
+          }
+        }
+
+        // 显示通知
+        showNotification(message, type = "success") {
+          const notification = document.createElement("div");
+          const bgColor = type === "error" ? "bg-red-600" : "bg-indigo-600";
+          notification.className = `fixed top-4 right-4 ${bgColor} text-white px-4 py-2 rounded-lg shadow-lg transition transform translate-x-full`;
+          notification.textContent = message;
+
+          document.body.appendChild(notification);
+
+          // 显示动画
+          setTimeout(() => {
+            notification.classList.remove("translate-x-full");
+          }, 10);
+
+          // 3秒后移除
+          setTimeout(() => {
+            notification.classList.add("translate-x-full");
+            setTimeout(() => notification.remove(), 300);
+          }, 3000);
+        }
+      }
+
+      // 初始化任务管理器
+      const taskManager = new TaskManager();
+
+      // 添加过滤器样式
+      const style = document.createElement("style");
+      style.textContent = `
+            .filter-btn {
+                background-color: #e0e7ff;
+                color: #4f46e5;
+            }
+            .filter-btn:hover {
+                background-color: #c7d2fe;
+            }
+            .filter-btn.active {
+                background-color: #4f46e5;
+                color: white;
+            }
+        `;
+      document.head.appendChild(style);
+    </script>
+  </body>
+</html>
